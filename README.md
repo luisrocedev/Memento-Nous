@@ -24,24 +24,24 @@
 
 ## Características principales
 
-| Característica | Detalle |
-|---|---|
-| **Recuerdos semánticos** | Título · fecha · lugar · emoción · personas · tags · texto descriptivo |
-| **Relaciones automáticas** | Conexiones entre recuerdos por tags compartidos |
-| **Grafo 2D** | Canvas API con layout circular, nodos coloreados por emoción, enlaces semánticos discontinuos |
-| **Grafo 3D** | Three.js + OrbitControls con esferas, iluminación y cámara orbital |
-| **Conjuntos dinámicos** | Agrupación por emoción · tag · persona · año |
-| **Dark mode** | Toggle manual + auto-detección · Escena Three.js adaptativa |
-| **3 pestañas** | Recuerdos · Grafo · Conjuntos |
-| **KPIs en tiempo real** | Recuerdos totales · visibles · tags · personas — con bordes semánticos |
-| **Emotion badges** | Insignias coloreadas por emoción en cada tarjeta |
-| **Chips diferenciados** | `#tag` (azul) · `@persona` (violeta) |
-| **Export / Import** | JSON con nombre fechado · Validación al importar |
-| **Toasts** | Notificaciones contextuales: success · error · info · warning |
-| **Confirm personalizado** | `<dialog>` con Promise en lugar de `confirm()` nativo |
-| **Auto-seed** | 13 recuerdos de ejemplo en primera ejecución |
-| **Leyenda del grafo** | Panel lateral con nodos de grupo coloreados + tipos de enlace |
-| **Responsive** | Breakpoints a 1000px y 680px |
+| Característica             | Detalle                                                                                       |
+| -------------------------- | --------------------------------------------------------------------------------------------- |
+| **Recuerdos semánticos**   | Título · fecha · lugar · emoción · personas · tags · texto descriptivo                        |
+| **Relaciones automáticas** | Conexiones entre recuerdos por tags compartidos                                               |
+| **Grafo 2D**               | Canvas API con layout circular, nodos coloreados por emoción, enlaces semánticos discontinuos |
+| **Grafo 3D**               | Three.js + OrbitControls con esferas, iluminación y cámara orbital                            |
+| **Conjuntos dinámicos**    | Agrupación por emoción · tag · persona · año                                                  |
+| **Dark mode**              | Toggle manual + auto-detección · Escena Three.js adaptativa                                   |
+| **3 pestañas**             | Recuerdos · Grafo · Conjuntos                                                                 |
+| **KPIs en tiempo real**    | Recuerdos totales · visibles · tags · personas — con bordes semánticos                        |
+| **Emotion badges**         | Insignias coloreadas por emoción en cada tarjeta                                              |
+| **Chips diferenciados**    | `#tag` (azul) · `@persona` (violeta)                                                          |
+| **Export / Import**        | JSON con nombre fechado · Validación al importar                                              |
+| **Toasts**                 | Notificaciones contextuales: success · error · info · warning                                 |
+| **Confirm personalizado**  | `<dialog>` con Promise en lugar de `confirm()` nativo                                         |
+| **Auto-seed**              | 13 recuerdos de ejemplo en primera ejecución                                                  |
+| **Leyenda del grafo**      | Panel lateral con nodos de grupo coloreados + tipos de enlace                                 |
+| **Responsive**             | Breakpoints a 1000px y 680px                                                                  |
 
 ---
 
@@ -68,11 +68,11 @@ Memento-Nous/
 └── README.md
 ```
 
-| Archivo | Líneas | Responsabilidad |
-|---|---|---|
-| `assets/app.js` | ~530 | Motor semántico, grafos Canvas + Three.js, CRUD, seed, export/import |
-| `assets/styles.css` | ~270 | Variables CSS, modo oscuro, tabs, badges, chips, toasts, leyenda |
-| `index.html` | ~175 | Estructura SPA con 3 tabs, diálogos, toast container, footer |
+| Archivo             | Líneas | Responsabilidad                                                      |
+| ------------------- | ------ | -------------------------------------------------------------------- |
+| `assets/app.js`     | ~530   | Motor semántico, grafos Canvas + Three.js, CRUD, seed, export/import |
+| `assets/styles.css` | ~270   | Variables CSS, modo oscuro, tabs, badges, chips, toasts, leyenda     |
+| `index.html`        | ~175   | Estructura SPA con 3 tabs, diálogos, toast container, footer         |
 
 ---
 
@@ -98,10 +98,10 @@ Usuario → Filtros (Emoción / Búsqueda / Agrupación)
 
 ## Visualización semántica
 
-| Modo | Tecnología | Nodos grupo | Nodos recuerdo | Enlaces |
-|---|---|---|---|---|
+| Modo   | Tecnología | Nodos grupo             | Nodos recuerdo                         | Enlaces                                             |
+| ------ | ---------- | ----------------------- | -------------------------------------- | --------------------------------------------------- |
 | **2D** | Canvas API | Círculos grandes (r=26) | Círculos coloreados por emoción (r=12) | Sólidos (grupo) + discontinuos violeta (semánticos) |
-| **3D** | Three.js | Esferas (r=6) | Esferas coloreadas por emoción (r=3.3) | Líneas con color diferenciado |
+| **3D** | Three.js   | Esferas (r=6)           | Esferas coloreadas por emoción (r=3.3) | Líneas con color diferenciado                       |
 
 Los **enlaces semánticos** conectan recuerdos que comparten al menos un tag, creando una red de asociaciones similar a la memoria humana.
 
@@ -126,7 +126,7 @@ Detecta `prefers-color-scheme: dark` automáticamente y persiste la elección en
 
 ## Autor
 
-**Luis Adolfo Roces Dapena** · DAM2 — Desarrollo de Interfaces
+**Luis Rodriguez Cedeño** · DAM2 — Desarrollo de Interfaces
 
 ---
 
