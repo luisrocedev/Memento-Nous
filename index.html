@@ -3,24 +3,35 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Sistema de recuerdos semánticos con grafos 2D/3D, IndexedDB y relaciones automáticas">
   <title>Memento Nous · Memorias semánticas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/styles.css">
   <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/controls/OrbitControls.js"></script>
+  <noscript><p style="padding:2rem;text-align:center">Activa JavaScript para usar Memento Nous.</p></noscript>
 </head>
 <body>
   <main class="shell">
+    <!-- Header -->
     <section class="panel header">
       <div>
         <h1>Memento Nous</h1>
-        <p>Proyecto de recuerdos semánticos con relaciones, conjuntos y visualización de nodos en 2D y 3D.</p>
+        <p>Recuerdos semánticos · Relaciones · Conjuntos · Grafos 2D/3D</p>
       </div>
-      <div class="actions">
+      <div class="actions header-actions">
         <button id="addMemoryBtn">+ Nuevo recuerdo</button>
+        <button id="exportBtn" class="secondary">⬇ Exportar</button>
+        <button id="importBtn" class="secondary">⬆ Importar</button>
+        <input type="file" id="importFile" accept=".json" hidden>
         <button id="resetDbBtn" class="secondary">Reset BD</button>
+        <button id="darkModeBtn" class="secondary" title="Alternar modo oscuro">🌓</button>
       </div>
     </section>
 
+    <!-- Filtros -->
     <section class="panel controls">
       <div class="row row-4">
         <label>Búsqueda global
@@ -54,80 +65,123 @@
       <div class="stats" id="statsBox"></div>
     </section>
 
-    <section class="grid-2">
-      <article class="panel">
-        <h2>Mapa semántico de recuerdos</h2>
-        <div id="graph2DWrap" class="graph-wrap">
-          <canvas id="graph2D" width="900" height="500"></canvas>
-        </div>
-        <div id="graph3DWrap" class="graph-wrap hidden">
-          <div id="graph3D"></div>
-        </div>
-      </article>
+    <!-- Tabs -->
+    <nav class="tabs">
+      <button class="tab active" data-tab="memories">Recuerdos</button>
+      <button class="tab" data-tab="graph">Grafo</button>
+      <button class="tab" data-tab="sets">Conjuntos</button>
+    </nav>
 
+    <!-- Tab: Recuerdos -->
+    <section id="tab-memories" class="tab-content active">
       <article class="panel">
         <h2>Recuerdos guardados</h2>
         <div id="memoryList" class="list"></div>
       </article>
     </section>
 
-    <section class="panel">
-      <h2>Conjuntos (sets) de recuerdos</h2>
-      <div class="actions">
-        <button id="buildSetsBtn" class="secondary">Recalcular sets</button>
+    <!-- Tab: Grafo -->
+    <section id="tab-graph" class="tab-content">
+      <div class="grid-graph">
+        <article class="panel">
+          <h2>Mapa semántico de recuerdos</h2>
+          <div id="graph2DWrap" class="graph-wrap">
+            <canvas id="graph2D" width="900" height="500"></canvas>
+          </div>
+          <div id="graph3DWrap" class="graph-wrap hidden">
+            <div id="graph3D"></div>
+          </div>
+        </article>
+        <aside class="panel legend-panel">
+          <h3>Leyenda</h3>
+          <div id="graphLegend" class="legend-list"></div>
+          <div class="legend-meta">
+            <p><span class="legend-line solid"></span> Enlace grupo → recuerdo</p>
+            <p><span class="legend-line dashed"></span> Relación semántica (tags)</p>
+          </div>
+        </aside>
       </div>
-      <div id="setsList" class="sets"></div>
+    </section>
+
+    <!-- Tab: Conjuntos -->
+    <section id="tab-sets" class="tab-content">
+      <article class="panel">
+        <h2>Conjuntos (sets) de recuerdos</h2>
+        <div class="actions" style="margin-bottom:10px">
+          <button id="buildSetsBtn" class="secondary">Recalcular sets</button>
+        </div>
+        <div id="setsList" class="sets"></div>
+      </article>
     </section>
   </main>
 
+  <!-- Dialog: nuevo recuerdo -->
   <dialog id="memoryDialog" class="dialog">
     <form id="memoryForm" method="dialog" class="dialog-form">
-      <header>
+      <div class="dialog-header">
         <h3>Nuevo recuerdo</h3>
-      </header>
+        <button type="button" id="closeDialogBtn" class="close-btn" title="Cerrar">&times;</button>
+      </div>
 
-      <label>Título
-        <input id="memTitle" required maxlength="120" placeholder="Primer día de prácticas">
-      </label>
-
-      <div class="row">
-        <label>Fecha
-          <input id="memDate" type="date" required>
+      <div class="dialog-body">
+        <label>Título
+          <input id="memTitle" required maxlength="120" placeholder="Primer día de prácticas">
         </label>
-        <label>Lugar
-          <input id="memPlace" maxlength="120" placeholder="Valencia">
+
+        <div class="row">
+          <label>Fecha <input id="memDate" type="date" required></label>
+          <label>Lugar <input id="memPlace" maxlength="120" placeholder="Valencia"></label>
+        </div>
+
+        <div class="row">
+          <label>Emoción
+            <select id="memEmotion" required>
+              <option value="">Seleccionar...</option>
+              <option value="alegria">Alegría</option>
+              <option value="nostalgia">Nostalgia</option>
+              <option value="orgullo">Orgullo</option>
+              <option value="tristeza">Tristeza</option>
+              <option value="sorpresa">Sorpresa</option>
+            </select>
+          </label>
+          <label>Personas (coma separada)
+            <input id="memPeople" placeholder="Ana, Luis, Profesor">
+          </label>
+        </div>
+
+        <label>Tags semánticos (coma separada)
+          <input id="memTags" placeholder="aprendizaje, trabajo, equipo">
+        </label>
+
+        <label>Descripción del recuerdo
+          <textarea id="memText" rows="5" required placeholder="Describe el recuerdo con contexto y detalles..."></textarea>
         </label>
       </div>
 
-      <div class="row">
-        <label>Emoción
-          <select id="memEmotion" required>
-            <option value="alegria">Alegría</option>
-            <option value="nostalgia">Nostalgia</option>
-            <option value="orgullo">Orgullo</option>
-            <option value="tristeza">Tristeza</option>
-            <option value="sorpresa">Sorpresa</option>
-          </select>
-        </label>
-        <label>Personas (coma separada)
-          <input id="memPeople" placeholder="Ana, Luis, Profesor">
-        </label>
-      </div>
-
-      <label>Tags semánticos (coma separada)
-        <input id="memTags" placeholder="aprendizaje, trabajo, equipo">
-      </label>
-
-      <label>Descripción del recuerdo
-        <textarea id="memText" rows="5" required placeholder="Describe el recuerdo con contexto y detalles..."></textarea>
-      </label>
-
-      <div class="actions">
-        <button type="submit">Guardar</button>
+      <div class="dialog-footer">
+        <button type="submit">💾 Guardar</button>
         <button type="button" id="cancelDialogBtn" class="secondary">Cancelar</button>
       </div>
     </form>
   </dialog>
+
+  <!-- Dialog: confirmación -->
+  <dialog id="confirmDialog" class="dialog confirm-dialog">
+    <h3 id="confirmTitle">Confirmar</h3>
+    <p id="confirmMsg"></p>
+    <div class="dialog-footer">
+      <button id="confirmOk">Aceptar</button>
+      <button id="confirmCancel" class="secondary">Cancelar</button>
+    </div>
+  </dialog>
+
+  <!-- Toasts -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <span>Memento Nous · DAM2 — Desarrollo de Interfaces · 2025-2026</span>
+  </footer>
 
   <script src="assets/app.js"></script>
 </body>

@@ -1,32 +1,60 @@
+/**
+ * Memento Nous — app.js v2
+ * Dark mode, tabs, toasts, custom confirm, export/import, auto-seed,
+ * emotion badges, differentiated chips, graph legend, semantic link styling.
+ */
+
 const DB_NAME = 'memento_nous_db';
 const DB_VERSION = 1;
 const STORE_MEMORIES = 'memories';
 
+/* ───── Emotion config ───── */
+const EMOTIONS = {
+  alegria:   { label: 'Alegría',   color: '#16a34a', hex: 0x22c55e },
+  nostalgia: { label: 'Nostalgia', color: '#2563eb', hex: 0x3b82f6 },
+  orgullo:   { label: 'Orgullo',   color: '#d97706', hex: 0xf59e0b },
+  tristeza:  { label: 'Tristeza',  color: '#7c3aed', hex: 0x8b5cf6 },
+  sorpresa:  { label: 'Sorpresa',  color: '#dc2626', hex: 0xef4444 },
+};
+
+/* ───── DOM refs ───── */
 const el = {
-  addMemoryBtn: document.getElementById('addMemoryBtn'),
-  resetDbBtn: document.getElementById('resetDbBtn'),
-  searchInput: document.getElementById('searchInput'),
-  emotionFilter: document.getElementById('emotionFilter'),
-  graphMode: document.getElementById('graphMode'),
-  groupBy: document.getElementById('groupBy'),
-  statsBox: document.getElementById('statsBox'),
-  memoryList: document.getElementById('memoryList'),
-  setsList: document.getElementById('setsList'),
-  buildSetsBtn: document.getElementById('buildSetsBtn'),
-  graph2DWrap: document.getElementById('graph2DWrap'),
-  graph3DWrap: document.getElementById('graph3DWrap'),
-  graph2D: document.getElementById('graph2D'),
-  graph3D: document.getElementById('graph3D'),
-  memoryDialog: document.getElementById('memoryDialog'),
-  memoryForm: document.getElementById('memoryForm'),
-  cancelDialogBtn: document.getElementById('cancelDialogBtn'),
-  memTitle: document.getElementById('memTitle'),
-  memDate: document.getElementById('memDate'),
-  memPlace: document.getElementById('memPlace'),
-  memEmotion: document.getElementById('memEmotion'),
-  memPeople: document.getElementById('memPeople'),
-  memTags: document.getElementById('memTags'),
-  memText: document.getElementById('memText'),
+  addMemoryBtn:   document.getElementById('addMemoryBtn'),
+  resetDbBtn:     document.getElementById('resetDbBtn'),
+  exportBtn:      document.getElementById('exportBtn'),
+  importBtn:      document.getElementById('importBtn'),
+  importFile:     document.getElementById('importFile'),
+  darkModeBtn:    document.getElementById('darkModeBtn'),
+  searchInput:    document.getElementById('searchInput'),
+  emotionFilter:  document.getElementById('emotionFilter'),
+  graphMode:      document.getElementById('graphMode'),
+  groupBy:        document.getElementById('groupBy'),
+  statsBox:       document.getElementById('statsBox'),
+  memoryList:     document.getElementById('memoryList'),
+  setsList:       document.getElementById('setsList'),
+  buildSetsBtn:   document.getElementById('buildSetsBtn'),
+  graphLegend:    document.getElementById('graphLegend'),
+  graph2DWrap:    document.getElementById('graph2DWrap'),
+  graph3DWrap:    document.getElementById('graph3DWrap'),
+  graph2D:        document.getElementById('graph2D'),
+  graph3D:        document.getElementById('graph3D'),
+  memoryDialog:   document.getElementById('memoryDialog'),
+  memoryForm:     document.getElementById('memoryForm'),
+  cancelDialogBtn:document.getElementById('cancelDialogBtn'),
+  closeDialogBtn: document.getElementById('closeDialogBtn'),
+  memTitle:       document.getElementById('memTitle'),
+  memDate:        document.getElementById('memDate'),
+  memPlace:       document.getElementById('memPlace'),
+  memEmotion:     document.getElementById('memEmotion'),
+  memPeople:      document.getElementById('memPeople'),
+  memTags:        document.getElementById('memTags'),
+  memText:        document.getElementById('memText'),
+  toastContainer: document.getElementById('toastContainer'),
+  confirmDialog:  document.getElementById('confirmDialog'),
+  confirmTitle:   document.getElementById('confirmTitle'),
+  confirmMsg:     document.getElementById('confirmMsg'),
+  confirmOk:      document.getElementById('confirmOk'),
+  confirmCancel:  document.getElementById('confirmCancel'),
 };
 
 const state = {
@@ -39,10 +67,64 @@ const state = {
   graph3d: null,
 };
 
+/* ───── Dark mode ───── */
+function applyDark(dark) {
+  document.body.classList.toggle('dark', dark);
+  localStorage.setItem('memento-dark', dark ? '1' : '0');
+  // Update Three.js scene bg
+  if (state.graph3d) {
+    state.graph3d.scene.background = new THREE.Color(dark ? 0x26262b : 0xfbfbfa);
+  }
+  renderGraph();
+}
+(function initDark() {
+  const stored = localStorage.getItem('memento-dark');
+  const prefer = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDark = stored !== null ? stored === '1' : prefer;
+  document.body.classList.toggle('dark', isDark);
+})();
+el.darkModeBtn?.addEventListener('click', () => {
+  applyDark(!document.body.classList.contains('dark'));
+});
+
+/* ───── Tabs ───── */
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${btn.dataset.tab}`)?.classList.add('active');
+    // Re-render graph when switching to graph tab
+    if (btn.dataset.tab === 'graph') renderGraph();
+  });
+});
+
+/* ───── Toast ───── */
+function toast(msg, tone = 'info') {
+  const div = document.createElement('div');
+  div.className = `toast toast-${tone}`;
+  const icons = { success: '\u2713', error: '\u2717', info: '\u2139', warning: '\u26A0' };
+  div.textContent = `${icons[tone] || ''} ${msg}`;
+  el.toastContainer.appendChild(div);
+  setTimeout(() => div.remove(), 3500);
+}
+
+/* ───── Custom confirm ───── */
+function nousConfirm(title, msg) {
+  return new Promise(resolve => {
+    el.confirmTitle.textContent = title;
+    el.confirmMsg.textContent = msg;
+    el.confirmDialog.showModal();
+    const cleanup = val => { el.confirmDialog.close(); resolve(val); };
+    el.confirmOk.onclick = () => cleanup(true);
+    el.confirmCancel.onclick = () => cleanup(false);
+  });
+}
+
+/* ───── IndexedDB ───── */
 function openDb() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
-
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_MEMORIES)) {
@@ -51,44 +133,67 @@ function openDb() {
         store.createIndex('emotion', 'emotion', { unique: false });
       }
     };
-
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
 
-async function dbAction(mode, callback) {
+async function dbAction(mode, cb) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_MEMORIES, mode);
     const store = tx.objectStore(STORE_MEMORIES);
-    const req = callback(store);
-
+    const req = cb(store);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
     tx.oncomplete = () => db.close();
   });
 }
 
-const getAllMemories = () => dbAction('readonly', (store) => store.getAll());
-const addMemory = (row) => dbAction('readwrite', (store) => store.add(row));
-const deleteMemory = (id) => dbAction('readwrite', (store) => store.delete(id));
-const clearMemories = () => dbAction('readwrite', (store) => store.clear());
+const getAllMemories = () => dbAction('readonly', s => s.getAll());
+const addMemory = row => dbAction('readwrite', s => s.add(row));
+const deleteMemory = id => dbAction('readwrite', s => s.delete(id));
+const clearMemories = () => dbAction('readwrite', s => s.clear());
 
-function parseCsv(input) {
-  return String(input || '')
-    .split(',')
-    .map((x) => x.trim())
-    .filter(Boolean);
+/* ───── Seed data (13 recuerdos) ───── */
+function seedData() {
+  return [
+    { title:'Primer día de prácticas', date:'2025-09-01', place:'Oviedo', emotion:'alegria',
+      people:['Ana','Carlos'], tags:['trabajo','crecimiento','inicio'], text:'Llegué nervioso pero todo fue muy bien. El equipo me recibió con los brazos abiertos.' },
+    { title:'Hackathon universitario', date:'2025-11-15', place:'Barcelona', emotion:'orgullo',
+      people:['Luis','María','Carlos'], tags:['programación','competición','equipo'], text:'Participamos en el hackathon nacional y ganamos el tercer premio con nuestro proyecto de IA.' },
+    { title:'Despedida de promoción', date:'2025-06-20', place:'Gijón', emotion:'nostalgia',
+      people:['Ana','Pedro','Lucía','Jorge'], tags:['universidad','amigos','final'], text:'Celebramos el fin de carrera en la playa. Risas, recuerdos y mucha nostalgia.' },
+    { title:'Entrevista en startup', date:'2025-10-05', place:'Madrid', emotion:'sorpresa',
+      people:['Elena'], tags:['trabajo','entrevista','startup'], text:'No esperaba que me llamasen, pero la entrevista fue genial y me hicieron oferta en el acto.' },
+    { title:'Proyecto cancelado', date:'2025-03-12', place:'Oviedo', emotion:'tristeza',
+      people:['Carlos','Ana'], tags:['trabajo','frustración','aprendizaje'], text:'Tras meses de trabajo, el cliente canceló el proyecto. Fue duro pero aprendimos mucho.' },
+    { title:'Charla sobre Canvas API', date:'2025-04-18', place:'Valencia', emotion:'orgullo',
+      people:['Profesor García'], tags:['programación','conferencia','aprendizaje'], text:'Di mi primera charla técnica sobre visualización con Canvas API frente a 60 personas.' },
+    { title:'Viaje a Lisboa', date:'2025-08-10', place:'Lisboa', emotion:'alegria',
+      people:['Ana','Luis'], tags:['viaje','cultura','amigos'], text:'Tres días increíbles descubriendo la ciudad: tranvías, pasteles de Belém y fado.' },
+    { title:'Examen final DAM', date:'2026-01-28', place:'Gijón', emotion:'sorpresa',
+      people:['Pedro','María'], tags:['universidad','examen','estrés'], text:'El examen salió mucho mejor de lo esperado. Celebramos con tortilla en el bar de siempre.' },
+    { title:'Mudanza al piso nuevo', date:'2025-07-01', place:'Oviedo', emotion:'alegria',
+      people:['Familia'], tags:['hogar','cambio','independencia'], text:'Por fin independiente. Montar muebles de IKEA nunca fue tan divertido (ni frustrante).' },
+    { title:'Bug en producción', date:'2025-12-03', place:'Remoto', emotion:'tristeza',
+      people:['Carlos'], tags:['trabajo','bug','producción','aprendizaje'], text:'Un bug en el deploy de viernes provocó caída del servicio. Aprendí que nunca se deploya en viernes.' },
+    { title:'Cumpleaños sorpresa', date:'2025-05-22', place:'Gijón', emotion:'sorpresa',
+      people:['Ana','Lucía','Pedro','Jorge','Familia'], tags:['cumpleaños','amigos','familia'], text:'Llegué a casa y estaban todos esperándome. La mejor sorpresa de mi vida.' },
+    { title:'Taller de Three.js', date:'2025-11-08', place:'Online', emotion:'orgullo',
+      people:['Profesor García','María'], tags:['programación','3d','aprendizaje','three.js'], text:'Completé el taller avanzado de Three.js. Monté una escena 3D completa con iluminación y controles.' },
+    { title:'Última clase del módulo', date:'2026-02-14', place:'Gijón', emotion:'nostalgia',
+      people:['Profesor García','Ana','Carlos','Pedro'], tags:['universidad','final','equipo','recuerdos'], text:'La última clase de Desarrollo de Interfaces. El profesor nos deseó suerte y todos aplaudimos.' },
+  ].map(m => ({ ...m, createdAt: new Date(m.date).toISOString() }));
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+/* ───── Helpers ───── */
+function parseCsv(input) {
+  return String(input || '').split(',').map(x => x.trim()).filter(Boolean);
+}
+
+function escapeHtml(v) {
+  return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
 }
 
 function formatDate(iso) {
@@ -97,62 +202,56 @@ function formatDate(iso) {
 }
 
 function emotionLabel(e) {
-  const map = {
-    alegria: 'Alegría',
-    nostalgia: 'Nostalgia',
-    orgullo: 'Orgullo',
-    tristeza: 'Tristeza',
-    sorpresa: 'Sorpresa',
-  };
-  return map[e] || e;
+  return EMOTIONS[e]?.label || e;
 }
 
+function emotionColor(e) {
+  return EMOTIONS[e]?.color || '#6b7280';
+}
+
+/* ───── Filters ───── */
 function applyFilters() {
   const q = state.search.toLowerCase();
-
-  state.filtered = state.memories.filter((m) => {
-    const hayEmotion = state.emotionFilter === 'all' || m.emotion === state.emotionFilter;
-
-    const hayQuery = q === '' || [
-      m.title,
-      m.text,
-      m.place,
-      ...(m.people || []),
-      ...(m.tags || []),
-    ].join(' ').toLowerCase().includes(q);
-
-    return hayEmotion && hayQuery;
+  state.filtered = state.memories.filter(m => {
+    const byEmotion = state.emotionFilter === 'all' || m.emotion === state.emotionFilter;
+    const text = [m.title, m.text, m.place, ...(m.people||[]), ...(m.tags||[])].join(' ').toLowerCase();
+    return byEmotion && (q === '' || text.includes(q));
   });
 }
 
+/* ───── KPIs ───── */
 function renderStats() {
   const total = state.memories.length;
   const filtered = state.filtered.length;
-  const tags = new Set(state.memories.flatMap((m) => m.tags || [])).size;
-  const people = new Set(state.memories.flatMap((m) => m.people || [])).size;
+  const tags = new Set(state.memories.flatMap(m => m.tags || [])).size;
+  const people = new Set(state.memories.flatMap(m => m.people || [])).size;
 
   el.statsBox.innerHTML = `
-    <article class="kpi"><strong>${total}</strong><span>Recuerdos totales</span></article>
-    <article class="kpi"><strong>${filtered}</strong><span>Recuerdos visibles</span></article>
-    <article class="kpi"><strong>${tags}</strong><span>Tags semánticos</span></article>
-    <article class="kpi"><strong>${people}</strong><span>Personas únicas</span></article>
+    <article class="kpi kpi-blue"><strong>${total}</strong><span>Recuerdos totales</span></article>
+    <article class="kpi kpi-green"><strong>${filtered}</strong><span>Recuerdos visibles</span></article>
+    <article class="kpi kpi-amber"><strong>${tags}</strong><span>Tags semánticos</span></article>
+    <article class="kpi kpi-red"><strong>${people}</strong><span>Personas únicas</span></article>
   `;
 }
 
+/* ───── Memory list ───── */
 function renderMemoryList() {
   if (!state.filtered.length) {
     el.memoryList.innerHTML = '<article class="memory"><p>No hay recuerdos que coincidan.</p></article>';
     return;
   }
 
-  el.memoryList.innerHTML = state.filtered.map((m) => `
+  el.memoryList.innerHTML = state.filtered.map(m => `
     <article class="memory" data-id="${m.id}">
       <h4>${escapeHtml(m.title)}</h4>
-      <small>${formatDate(m.date)} · ${escapeHtml(m.place || 'sin lugar')} · ${emotionLabel(m.emotion)}</small>
+      <small>
+        ${formatDate(m.date)} · ${escapeHtml(m.place || 'sin lugar')} ·
+        <span class="emotion-badge emotion-${m.emotion}">${emotionLabel(m.emotion)}</span>
+      </small>
       <p>${escapeHtml(m.text)}</p>
       <div class="meta">
-        ${(m.tags || []).map((t) => `<span class="chip">#${escapeHtml(t)}</span>`).join('')}
-        ${(m.people || []).map((p) => `<span class="chip">@${escapeHtml(p)}</span>`).join('')}
+        ${(m.tags||[]).map(t => `<span class="chip chip-tag">#${escapeHtml(t)}</span>`).join('')}
+        ${(m.people||[]).map(p => `<span class="chip chip-person">@${escapeHtml(p)}</span>`).join('')}
       </div>
       <div class="actions" style="margin-top:8px">
         <button class="secondary" data-action="delete">Eliminar</button>
@@ -161,42 +260,36 @@ function renderMemoryList() {
   `).join('');
 }
 
-function getGroupValue(memory, groupBy) {
-  if (groupBy === 'emotion') return memory.emotion || 'sin_emocion';
-  if (groupBy === 'tag') return (memory.tags && memory.tags[0]) || 'sin_tag';
-  if (groupBy === 'person') return (memory.people && memory.people[0]) || 'sin_persona';
-  if (groupBy === 'year') return String(new Date(memory.date).getFullYear() || 'sin_anio');
+/* ───── Semantic sets ───── */
+function getGroupValue(m, g) {
+  if (g === 'emotion') return m.emotion || 'sin_emocion';
+  if (g === 'tag') return (m.tags && m.tags[0]) || 'sin_tag';
+  if (g === 'person') return (m.people && m.people[0]) || 'sin_persona';
+  if (g === 'year') return String(new Date(m.date).getFullYear() || 'sin_anio');
   return 'general';
 }
 
 function buildSemanticSets() {
   const byGroup = new Map();
-
-  for (const memory of state.filtered) {
-    const group = getGroupValue(memory, state.groupBy);
-    if (!byGroup.has(group)) byGroup.set(group, []);
-    byGroup.get(group).push(memory);
+  for (const m of state.filtered) {
+    const g = getGroupValue(m, state.groupBy);
+    if (!byGroup.has(g)) byGroup.set(g, []);
+    byGroup.get(g).push(m);
   }
-
-  const sets = [...byGroup.entries()].map(([group, rows]) => ({
-    group,
-    count: rows.length,
-    ids: rows.map((r) => r.id),
-    titles: rows.map((r) => r.title),
+  return [...byGroup.entries()].map(([g, rows]) => ({
+    group: g, count: rows.length,
+    ids: rows.map(r => r.id),
+    titles: rows.map(r => r.title),
   })).sort((a, b) => b.count - a.count);
-
-  return sets;
 }
 
 function renderSets() {
   const sets = buildSemanticSets();
-
   if (!sets.length) {
     el.setsList.innerHTML = '<article class="set">Sin sets para mostrar.</article>';
     return;
   }
-
-  el.setsList.innerHTML = sets.map((s) => `
+  el.setsList.innerHTML = sets.map(s => `
     <article class="set">
       <strong>${escapeHtml(s.group)} · ${s.count} recuerdo(s)</strong>
       <span>${s.titles.map(escapeHtml).join(' · ')}</span>
@@ -204,131 +297,151 @@ function renderSets() {
   `).join('');
 }
 
+/* ───── Graph model ───── */
 function buildGraphModel() {
   const groupNodes = new Map();
   const memoryNodes = [];
   const links = [];
 
-  for (const memory of state.filtered) {
-    const group = getGroupValue(memory, state.groupBy);
-    const gid = `g:${group}`;
+  for (const m of state.filtered) {
+    const g = getGroupValue(m, state.groupBy);
+    const gid = `g:${g}`;
+    if (!groupNodes.has(gid)) groupNodes.set(gid, { id: gid, label: g, type: 'group' });
 
-    if (!groupNodes.has(gid)) {
-      groupNodes.set(gid, { id: gid, label: group, type: 'group' });
-    }
-
-    const mid = `m:${memory.id}`;
-    memoryNodes.push({ id: mid, label: memory.title, type: 'memory', raw: memory });
-
+    const mid = `m:${m.id}`;
+    memoryNodes.push({ id: mid, label: m.title, type: 'memory', raw: m });
     links.push({ source: gid, target: mid, kind: 'group' });
+  }
 
-    const peers = state.filtered.filter((x) => x.id !== memory.id);
-    for (const other of peers) {
-      const sharedTags = (memory.tags || []).filter((t) => (other.tags || []).includes(t));
-      if (sharedTags.length > 0 && Number(memory.id) < Number(other.id)) {
-        links.push({ source: `m:${memory.id}`, target: `m:${other.id}`, kind: 'semantic' });
+  // Semantic links (shared tags)
+  for (let i = 0; i < memoryNodes.length; i++) {
+    for (let j = i + 1; j < memoryNodes.length; j++) {
+      const a = memoryNodes[i].raw, b = memoryNodes[j].raw;
+      const shared = (a.tags||[]).filter(t => (b.tags||[]).includes(t));
+      if (shared.length > 0) {
+        links.push({ source: memoryNodes[i].id, target: memoryNodes[j].id, kind: 'semantic' });
       }
     }
   }
 
-  const nodes = [...groupNodes.values(), ...memoryNodes];
-  return { nodes, links };
+  return { nodes: [...groupNodes.values(), ...memoryNodes], links };
 }
 
+/* ───── Graph colors (dark adaptive) ───── */
+function getGraphColors() {
+  const d = document.body.classList.contains('dark');
+  return {
+    bg:       d ? '#26262b' : '#fcfcfb',
+    text:     d ? '#d4d4d8' : '#111827',
+    muted:    d ? '#71717a' : '#6b7280',
+    groupFill:d ? '#71717a' : '#374151',
+    memFill:  d ? '#52525b' : '#9ca3af',
+    linkGroup:d ? '#4a4a50' : '#cbd5e1',
+    linkSem:  d ? '#7c3aed' : '#8b5cf6',
+    sceneBg:  d ? 0x26262b : 0xfbfbfa,
+    groupHex: d ? 0x71717a : 0x374151,
+    memHex:   d ? 0x52525b : 0x9ca3af,
+    linkGHex: d ? 0x4a4a50 : 0xcbd5e1,
+    linkSHex: d ? 0x7c3aed : 0x8b5cf6,
+  };
+}
+
+/* ───── Graph 2D ───── */
 function drawGraph2D() {
   const { nodes, links } = buildGraphModel();
   const canvas = el.graph2D;
   const ctx = canvas.getContext('2d');
+  const cc = getGraphColors();
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = cc.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   if (!nodes.length) {
-    ctx.fillStyle = '#6b7280';
+    ctx.fillStyle = cc.muted;
     ctx.font = '16px Inter';
     ctx.fillText('No hay nodos para mostrar', 20, 36);
     return;
   }
 
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
-  const groups = nodes.filter((n) => n.type === 'group');
-  const memories = nodes.filter((n) => n.type === 'memory');
-
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  const groups = nodes.filter(n => n.type === 'group');
+  const mems = nodes.filter(n => n.type === 'memory');
   const pos = new Map();
 
   groups.forEach((g, i) => {
-    const angle = (Math.PI * 2 * i) / Math.max(groups.length, 1);
-    const r = 160;
-    pos.set(g.id, {
-      x: centerX + Math.cos(angle) * r,
-      y: centerY + Math.sin(angle) * r,
-      r: 26,
-      color: '#374151',
-    });
+    const a = (Math.PI * 2 * i) / Math.max(groups.length, 1);
+    pos.set(g.id, { x: cx + Math.cos(a) * 160, y: cy + Math.sin(a) * 160, r: 26, color: cc.groupFill });
   });
 
-  memories.forEach((m, i) => {
-    const angle = (Math.PI * 2 * i) / Math.max(memories.length, 1);
-    const r = 240;
+  mems.forEach((m, i) => {
+    const a = (Math.PI * 2 * i) / Math.max(mems.length, 1);
+    const eColor = emotionColor(m.raw.emotion);
     pos.set(m.id, {
-      x: centerX + Math.cos(angle) * r + (Math.random() - 0.5) * 20,
-      y: centerY + Math.sin(angle) * r + (Math.random() - 0.5) * 20,
-      r: 12,
-      color: '#9ca3af',
+      x: cx + Math.cos(a) * 240 + (Math.random() - 0.5) * 20,
+      y: cy + Math.sin(a) * 240 + (Math.random() - 0.5) * 20,
+      r: 12, color: eColor,
     });
   });
 
-  for (const link of links) {
-    const a = pos.get(link.source);
-    const b = pos.get(link.target);
+  // Draw links
+  for (const l of links) {
+    const a = pos.get(l.source), b = pos.get(l.target);
     if (!a || !b) continue;
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
-    ctx.strokeStyle = link.kind === 'group' ? '#cbd5e1' : '#e5e7eb';
-    ctx.lineWidth = link.kind === 'group' ? 1.4 : 1;
+    if (l.kind === 'group') {
+      ctx.strokeStyle = cc.linkGroup;
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([]);
+    } else {
+      ctx.strokeStyle = cc.linkSem;
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([6, 4]);
+    }
     ctx.stroke();
   }
+  ctx.setLineDash([]);
 
-  for (const node of nodes) {
-    const p = pos.get(node.id);
+  // Draw nodes
+  for (const n of nodes) {
+    const p = pos.get(n.id);
     if (!p) continue;
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
     ctx.fillStyle = p.color;
     ctx.fill();
 
-    ctx.font = node.type === 'group' ? '600 12px Inter' : '11px Inter';
-    ctx.fillStyle = '#111827';
-    const label = node.label.length > 22 ? `${node.label.slice(0, 22)}…` : node.label;
+    ctx.font = n.type === 'group' ? '600 12px Inter' : '11px Inter';
+    ctx.fillStyle = cc.text;
+    const label = n.label.length > 22 ? `${n.label.slice(0, 22)}…` : n.label;
     ctx.fillText(label, p.x + p.r + 4, p.y + 3);
   }
 }
 
+/* ───── Graph 3D ───── */
 function ensureGraph3D() {
   if (state.graph3d) return state.graph3d;
 
   const wrap = el.graph3D;
-  const width = wrap.clientWidth || 900;
-  const height = 500;
+  const w = wrap.clientWidth || 900, h = 500;
+  const cc = getGraphColors();
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xfbfbfa);
+  scene.background = new THREE.Color(cc.sceneBg);
 
-  const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 2000);
+  const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 2000);
   camera.position.set(0, 80, 240);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(width, height);
+  renderer.setSize(w, h);
   wrap.innerHTML = '';
   wrap.appendChild(renderer.domElement);
 
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
 
-  const light = new THREE.DirectionalLight(0xffffff, 0.9);
-  light.position.set(40, 100, 80);
-  scene.add(light);
+  scene.add(new THREE.DirectionalLight(0xffffff, 0.9).translateX(40).translateY(100).translateZ(80));
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
   const nodesGroup = new THREE.Group();
@@ -336,12 +449,7 @@ function ensureGraph3D() {
   scene.add(linksGroup);
   scene.add(nodesGroup);
 
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
+  (function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); })();
 
   state.graph3d = { scene, camera, renderer, controls, nodesGroup, linksGroup };
   return state.graph3d;
@@ -350,54 +458,70 @@ function ensureGraph3D() {
 function drawGraph3D() {
   const graph = ensureGraph3D();
   const { nodes, links } = buildGraphModel();
+  const cc = getGraphColors();
 
+  graph.scene.background = new THREE.Color(cc.sceneBg);
   graph.nodesGroup.clear();
   graph.linksGroup.clear();
 
   if (!nodes.length) return;
 
-  const groupNodes = nodes.filter((n) => n.type === 'group');
-  const memoryNodes = nodes.filter((n) => n.type === 'memory');
+  const groups = nodes.filter(n => n.type === 'group');
+  const mems = nodes.filter(n => n.type === 'memory');
   const pos = new Map();
 
-  groupNodes.forEach((g, i) => {
-    const angle = (Math.PI * 2 * i) / Math.max(groupNodes.length, 1);
-    const p = new THREE.Vector3(Math.cos(angle) * 70, 20, Math.sin(angle) * 70);
+  groups.forEach((g, i) => {
+    const a = (Math.PI * 2 * i) / Math.max(groups.length, 1);
+    const p = new THREE.Vector3(Math.cos(a) * 70, 20, Math.sin(a) * 70);
     pos.set(g.id, p);
-
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(6, 16, 16),
-      new THREE.MeshStandardMaterial({ color: 0x374151 })
+      new THREE.MeshStandardMaterial({ color: cc.groupHex })
     );
     mesh.position.copy(p);
     graph.nodesGroup.add(mesh);
   });
 
-  memoryNodes.forEach((m, i) => {
-    const angle = (Math.PI * 2 * i) / Math.max(memoryNodes.length, 1);
-    const p = new THREE.Vector3(Math.cos(angle) * 120, (Math.random() - 0.5) * 40, Math.sin(angle) * 120);
+  mems.forEach((m, i) => {
+    const a = (Math.PI * 2 * i) / Math.max(mems.length, 1);
+    const p = new THREE.Vector3(Math.cos(a) * 120, (Math.random() - 0.5) * 40, Math.sin(a) * 120);
     pos.set(m.id, p);
-
+    const eHex = EMOTIONS[m.raw?.emotion]?.hex || cc.memHex;
     const mesh = new THREE.Mesh(
       new THREE.SphereGeometry(3.3, 12, 12),
-      new THREE.MeshStandardMaterial({ color: 0x9ca3af })
+      new THREE.MeshStandardMaterial({ color: eHex })
     );
     mesh.position.copy(p);
     graph.nodesGroup.add(mesh);
   });
 
-  links.forEach((l) => {
-    const a = pos.get(l.source);
-    const b = pos.get(l.target);
+  links.forEach(l => {
+    const a = pos.get(l.source), b = pos.get(l.target);
     if (!a || !b) return;
     const geom = new THREE.BufferGeometry().setFromPoints([a, b]);
-    const mat = new THREE.LineBasicMaterial({ color: l.kind === 'group' ? 0xcbd5e1 : 0xe5e7eb });
-    const line = new THREE.Line(geom, mat);
-    graph.linksGroup.add(line);
+    const color = l.kind === 'group' ? cc.linkGHex : cc.linkSHex;
+    graph.linksGroup.add(new THREE.Line(geom, new THREE.LineBasicMaterial({ color })));
   });
 }
 
+/* ───── Legend ───── */
+function renderLegend() {
+  const groups = [...new Set(state.filtered.map(m => getGroupValue(m, state.groupBy)))];
+  if (!groups.length) {
+    el.graphLegend.innerHTML = '<p style="color:var(--muted);font-size:.82rem">Sin nodos</p>';
+    return;
+  }
+
+  el.graphLegend.innerHTML = groups.map(g => {
+    const color = state.groupBy === 'emotion' ? emotionColor(g) : '#374151';
+    const label = state.groupBy === 'emotion' ? emotionLabel(g) : escapeHtml(g);
+    return `<div class="legend-item"><span class="legend-dot" style="background:${color}"></span>${label}</div>`;
+  }).join('');
+}
+
+/* ───── Render graph ───── */
 function renderGraph() {
+  renderLegend();
   if (state.graphMode === '2d') {
     el.graph2DWrap.classList.remove('hidden');
     el.graph3DWrap.classList.add('hidden');
@@ -409,6 +533,7 @@ function renderGraph() {
   }
 }
 
+/* ───── Render all ───── */
 function renderAll() {
   applyFilters();
   renderStats();
@@ -423,17 +548,13 @@ async function refresh() {
   renderAll();
 }
 
-el.addMemoryBtn.addEventListener('click', () => {
-  el.memoryDialog.showModal();
-});
+/* ───── Events ───── */
+el.addMemoryBtn.addEventListener('click', () => el.memoryDialog.showModal());
+el.cancelDialogBtn.addEventListener('click', () => el.memoryDialog.close());
+el.closeDialogBtn?.addEventListener('click', () => el.memoryDialog.close());
 
-el.cancelDialogBtn.addEventListener('click', () => {
-  el.memoryDialog.close();
-});
-
-el.memoryForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-
+el.memoryForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
   const payload = {
     title: el.memTitle.value.trim(),
     date: el.memDate.value,
@@ -444,69 +565,103 @@ el.memoryForm.addEventListener('submit', async (event) => {
     text: el.memText.value.trim(),
     createdAt: new Date().toISOString(),
   };
-
-  if (!payload.title || !payload.text || !payload.date) return;
-
+  if (!payload.title || !payload.text || !payload.date || !payload.emotion) {
+    toast('Título, fecha, emoción y texto son obligatorios', 'warning');
+    return;
+  }
   await addMemory(payload);
   el.memoryForm.reset();
   el.memoryDialog.close();
+  toast('Recuerdo guardado', 'success');
   await refresh();
 });
 
-el.memoryList.addEventListener('click', async (event) => {
-  const button = event.target.closest('button[data-action="delete"]');
-  if (!button) return;
-
-  const article = event.target.closest('.memory[data-id]');
+el.memoryList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-action="delete"]');
+  if (!btn) return;
+  const article = e.target.closest('.memory[data-id]');
   if (!article) return;
-
-  const id = Number(article.dataset.id);
-  if (!id) return;
-
-  await deleteMemory(id);
+  const ok = await nousConfirm('Eliminar recuerdo', 'Se eliminará este recuerdo de la base de datos.');
+  if (!ok) return;
+  await deleteMemory(Number(article.dataset.id));
+  toast('Recuerdo eliminado', 'success');
   await refresh();
 });
 
 el.resetDbBtn.addEventListener('click', async () => {
-  const ok = confirm('¿Vaciar todos los recuerdos?');
+  const ok = await nousConfirm('Vaciar recuerdos', '¿Eliminar todos los recuerdos? Esta acción no se puede deshacer.');
   if (!ok) return;
   await clearMemories();
+  toast('Base de datos vaciada', 'success');
   await refresh();
 });
 
-el.searchInput.addEventListener('input', () => {
-  state.search = el.searchInput.value.trim();
-  renderAll();
+/* Export */
+el.exportBtn.addEventListener('click', async () => {
+  const data = await getAllMemories();
+  if (!data.length) { toast('Sin datos para exportar', 'warning'); return; }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `memento_nous_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Recuerdos exportados como JSON', 'success');
 });
 
-el.emotionFilter.addEventListener('change', () => {
-  state.emotionFilter = el.emotionFilter.value;
-  renderAll();
+/* Import */
+el.importBtn.addEventListener('click', () => el.importFile.click());
+el.importFile.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!Array.isArray(data)) throw new Error('El archivo debe contener un array JSON');
+    let count = 0;
+    for (const row of data) {
+      if (row.title && row.date && row.emotion) {
+        const { id, ...clean } = row;
+        clean.createdAt = clean.createdAt || new Date().toISOString();
+        await addMemory(clean);
+        count++;
+      }
+    }
+    toast(`${count} recuerdos importados`, 'success');
+    await refresh();
+  } catch (err) {
+    toast(`Error al importar: ${err.message}`, 'error');
+  }
+  el.importFile.value = '';
 });
 
-el.groupBy.addEventListener('change', () => {
-  state.groupBy = el.groupBy.value;
-  renderAll();
-});
+/* Filters */
+el.searchInput.addEventListener('input', () => { state.search = el.searchInput.value.trim(); renderAll(); });
+el.emotionFilter.addEventListener('change', () => { state.emotionFilter = el.emotionFilter.value; renderAll(); });
+el.groupBy.addEventListener('change', () => { state.groupBy = el.groupBy.value; renderAll(); });
+el.graphMode.addEventListener('change', () => { state.graphMode = el.graphMode.value; renderGraph(); });
+el.buildSetsBtn.addEventListener('click', () => renderSets());
 
-el.graphMode.addEventListener('change', () => {
-  state.graphMode = el.graphMode.value;
-  renderGraph();
-});
-
-el.buildSetsBtn.addEventListener('click', () => {
-  renderSets();
-});
-
+/* Resize */
 window.addEventListener('resize', () => {
   if (state.graphMode === '3d' && state.graph3d) {
-    const wrap = el.graph3D;
-    const w = wrap.clientWidth || 900;
-    const h = 500;
+    const w = el.graph3D.clientWidth || 900, h = 500;
     state.graph3d.camera.aspect = w / h;
     state.graph3d.camera.updateProjectionMatrix();
     state.graph3d.renderer.setSize(w, h);
   }
 });
 
-refresh().catch(console.error);
+/* ───── Boot ───── */
+(async function boot() {
+  try {
+    state.memories = await getAllMemories();
+    if (!state.memories.length) {
+      for (const m of seedData()) await addMemory(m);
+      state.memories = await getAllMemories();
+      toast('Recuerdos de ejemplo cargados automáticamente', 'info');
+    }
+    state.memories.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    renderAll();
+  } catch (err) { console.error(err); }
+})();
